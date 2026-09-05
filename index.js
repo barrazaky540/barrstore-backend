@@ -17,16 +17,16 @@ app.use(express.json());
 function checkAdmin(req, res, next) {
   const adminKey = req.headers["x-admin-key"];
 
-  // ADMIN_KEY belum dibuat di Vercel
   if (!process.env.ADMIN_KEY) {
     return res.status(500).json({
+      success: false,
       message: "ADMIN_KEY belum diatur di Vercel"
     });
   }
 
-  // Password admin salah
   if (adminKey !== process.env.ADMIN_KEY) {
     return res.status(401).json({
+      success: false,
       message: "Password admin salah"
     });
   }
@@ -38,7 +38,10 @@ function checkAdmin(req, res, next) {
 // HOME
 // =========================
 app.get("/", (req, res) => {
-  res.send("Halo, ini backend BarrStore!");
+  res.json({
+    success: true,
+    message: "Halo, ini backend BarrStore!"
+  });
 });
 
 // =========================
@@ -317,9 +320,10 @@ app.get("/api/users", async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
-    console.error(error);
+    console.error("USER ERROR:", error);
 
     res.status(500).json({
+      success: false,
       message: "Gagal mengambil data user"
     });
   }
@@ -334,6 +338,7 @@ app.post("/api/users", async (req, res) => {
 
     if (!username || !password) {
       return res.status(400).json({
+        success: false,
         message: "Username dan password wajib diisi"
       });
     }
@@ -347,20 +352,25 @@ app.post("/api/users", async (req, res) => {
     });
 
     res.status(201).json({
+      success: true,
       message: "User berhasil dibuat",
-      userId: result.lastInsertRowid
+      userId: Number(result.lastInsertRowid)
     });
+
   } catch (error) {
     if (error.message && error.message.includes("UNIQUE")) {
       return res.status(409).json({
+        success: false,
         message: "Username sudah digunakan"
       });
     }
 
-    console.error(error);
+    console.error("REGISTER ERROR:", error);
 
     res.status(500).json({
-      message: "Gagal membuat user"
+      success: false,
+      message: "Gagal membuat user",
+      error: error.message
     });
   }
 });
@@ -369,6 +379,11 @@ app.post("/api/users", async (req, res) => {
 // ORDER - BUAT ORDER
 // =========================
 app.post("/api/orders", async (req, res) => {
+  console.log("=================================");
+  console.log("ORDER MASUK");
+  console.log("BODY:", req.body);
+  console.log("=================================");
+
   try {
     const {
       username,
@@ -378,8 +393,12 @@ app.post("/api/orders", async (req, res) => {
       price
     } = req.body;
 
+    // Validasi
     if (!service || !game) {
+      console.log("DATA ORDER KURANG");
+
       return res.status(400).json({
+        success: false,
         message: "Service dan game wajib diisi"
       });
     }
@@ -395,19 +414,27 @@ app.post("/api/orders", async (req, res) => {
         service,
         game,
         nominal || null,
-        price || 0
+        Number(price) || 0
       ]
     });
 
-    res.status(201).json({
-      message: "Order berhasil dibuat",
-      orderId: result.lastInsertRowid
-    });
-  } catch (error) {
-    console.error(error);
+    console.log("ORDER BERHASIL:", result.lastInsertRowid);
 
-    res.status(500).json({
-      message: "Gagal membuat order"
+    return res.status(201).json({
+      success: true,
+      message: "Order berhasil dibuat",
+      orderId: Number(result.lastInsertRowid)
+    });
+
+  } catch (error) {
+    console.error("=================================");
+    console.error("ORDER ERROR:", error);
+    console.error("=================================");
+
+    return res.status(500).json({
+      success: false,
+      message: "Gagal membuat order",
+      error: error.message
     });
   }
 });
@@ -424,10 +451,12 @@ app.get("/api/orders", checkAdmin, async (req, res) => {
     `);
 
     res.json(result.rows);
+
   } catch (error) {
-    console.error(error);
+    console.error("GET ORDERS ERROR:", error);
 
     res.status(500).json({
+      success: false,
       message: "Gagal mengambil data order"
     });
   }
@@ -450,6 +479,7 @@ app.patch("/api/orders/:id/status", checkAdmin, async (req, res) => {
 
     if (!allowedStatus.includes(status)) {
       return res.status(400).json({
+        success: false,
         message: "Status tidak valid",
         allowedStatus
       });
@@ -466,6 +496,7 @@ app.patch("/api/orders/:id/status", checkAdmin, async (req, res) => {
 
     if (result.rowsAffected === 0) {
       return res.status(404).json({
+        success: false,
         message: "Pesanan tidak ditemukan"
       });
     }
@@ -476,11 +507,14 @@ app.patch("/api/orders/:id/status", checkAdmin, async (req, res) => {
       orderId: Number(id),
       status
     });
+
   } catch (error) {
-    console.error(error);
+    console.error("UPDATE STATUS ERROR:", error);
 
     res.status(500).json({
-      message: "Gagal memperbarui status pesanan"
+      success: false,
+      message: "Gagal memperbarui status pesanan",
+      error: error.message
     });
   }
 });
@@ -495,6 +529,7 @@ async function startServer() {
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server jalan di port ${PORT}`);
     });
+
   } catch (error) {
     console.error("Gagal menjalankan database:", error);
     process.exit(1);
