@@ -45,6 +45,18 @@ app.get("/", (req, res) => {
 });
 
 // =========================
+// CEK ADMIN KEY
+// =========================
+app.get("/api/check-admin", (req, res) => {
+  res.json({
+    adminKeyExists: !!process.env.ADMIN_KEY,
+    adminKeyLength: process.env.ADMIN_KEY
+      ? process.env.ADMIN_KEY.length
+      : 0
+  });
+});
+
+// =========================
 // DATA GAME
 // =========================
 app.get("/api/games", (req, res) => {
@@ -393,10 +405,7 @@ app.post("/api/orders", async (req, res) => {
       price
     } = req.body;
 
-    // Validasi
     if (!service || !game) {
-      console.log("DATA ORDER KURANG");
-
       return res.status(400).json({
         success: false,
         message: "Service dan game wajib diisi"
@@ -427,9 +436,7 @@ app.post("/api/orders", async (req, res) => {
     });
 
   } catch (error) {
-    console.error("=================================");
     console.error("ORDER ERROR:", error);
-    console.error("=================================");
 
     return res.status(500).json({
       success: false,
