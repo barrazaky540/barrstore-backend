@@ -548,8 +548,7 @@ app.post("/api/vouchers/check", async (req, res) => {
     if (
       voucher.max_uses !== null &&
       voucher.max_uses !== undefined &&
-      Number(voucher.used_count) >=
-        Number(voucher.max_uses)
+      Number(voucher.used_count) >= Number(voucher.max_uses)
     ) {
       return res.status(400).json({
         success: false,
@@ -558,9 +557,7 @@ app.post("/api/vouchers/check", async (req, res) => {
     }
 
     if (voucher.expires_at) {
-      const expiry = new Date(
-        voucher.expires_at
-      );
+      const expiry = new Date(voucher.expires_at);
 
       if (
         !Number.isNaN(expiry.getTime()) &&
@@ -577,8 +574,7 @@ app.post("/api/vouchers/check", async (req, res) => {
 
     if (voucher.type === "percent") {
       discount = Math.floor(
-        originalPrice *
-          (Number(voucher.value) / 100)
+        originalPrice * (Number(voucher.value) / 100)
       );
     } else if (voucher.type === "nominal") {
       discount = Number(voucher.value);
@@ -589,8 +585,7 @@ app.post("/api/vouchers/check", async (req, res) => {
       Math.min(discount, originalPrice)
     );
 
-    const finalPrice =
-      originalPrice - discount;
+    const finalPrice = originalPrice - discount;
 
     res.json({
       success: true,
@@ -605,10 +600,7 @@ app.post("/api/vouchers/check", async (req, res) => {
       finalPrice,
     });
   } catch (error) {
-    console.error(
-      "CHECK VOUCHER ERROR:",
-      error
-    );
+    console.error("CHECK VOUCHER ERROR:", error);
 
     res.status(500).json({
       success: false,
@@ -646,10 +638,7 @@ app.get(
         vouchers: result.rows,
       });
     } catch (error) {
-      console.error(
-        "GET VOUCHERS ERROR:",
-        error
-      );
+      console.error("GET VOUCHERS ERROR:", error);
 
       res.status(500).json({
         success: false,
@@ -701,20 +690,14 @@ app.post(
         });
       }
 
-      if (
-        !Number.isInteger(value) ||
-        value <= 0
-      ) {
+      if (!Number.isInteger(value) || value <= 0) {
         return res.status(400).json({
           success: false,
           message: "Nilai voucher tidak valid",
         });
       }
 
-      if (
-        type === "percent" &&
-        value > 100
-      ) {
+      if (type === "percent" && value > 100) {
         return res.status(400).json({
           success: false,
           message:
@@ -785,9 +768,7 @@ app.post(
       res.status(201).json({
         success: true,
         message: "Voucher berhasil dibuat",
-        voucherId: Number(
-          result.lastInsertRowid
-        ),
+        voucherId: Number(result.lastInsertRowid),
       });
     } catch (error) {
       if (
@@ -801,10 +782,7 @@ app.post(
         });
       }
 
-      console.error(
-        "CREATE VOUCHER ERROR:",
-        error
-      );
+      console.error("CREATE VOUCHER ERROR:", error);
 
       res.status(500).json({
         success: false,
@@ -828,9 +806,7 @@ app.patch(
       const { active } = req.body;
 
       const activeValue =
-        active === true || active === 1
-          ? 1
-          : 0;
+        active === true || active === 1 ? 1 : 0;
 
       const result = await db.execute({
         sql: `
@@ -856,10 +832,7 @@ app.patch(
         active: Boolean(activeValue),
       });
     } catch (error) {
-      console.error(
-        "UPDATE VOUCHER ERROR:",
-        error
-      );
+      console.error("UPDATE VOUCHER ERROR:", error);
 
       res.status(500).json({
         success: false,
@@ -946,8 +919,7 @@ app.post("/api/orders", async (req, res) => {
         });
       }
 
-      const voucher =
-        voucherResult.rows[0];
+      const voucher = voucherResult.rows[0];
 
       if (Number(voucher.active) !== 1) {
         return res.status(400).json({
@@ -992,18 +964,13 @@ app.post("/api/orders", async (req, res) => {
           originalPrice *
             (Number(voucher.value) / 100)
         );
-      } else if (
-        voucher.type === "nominal"
-      ) {
+      } else if (voucher.type === "nominal") {
         discount = Number(voucher.value);
       }
 
       discount = Math.max(
         0,
-        Math.min(
-          discount,
-          originalPrice
-        )
+        Math.min(discount, originalPrice)
       );
 
       finalPrice =
@@ -1012,7 +979,6 @@ app.post("/api/orders", async (req, res) => {
       appliedVoucherCode =
         voucher.code;
 
-      // Tambahkan jumlah pemakaian
       await db.execute({
         sql: `
           UPDATE vouchers
@@ -1066,10 +1032,7 @@ app.post("/api/orders", async (req, res) => {
       result.lastInsertRowid
     );
 
-    console.log(
-      "ORDER BERHASIL:",
-      orderId
-    );
+    console.log("ORDER BERHASIL:", orderId);
 
     return res.status(201).json({
       success: true,
@@ -1118,6 +1081,8 @@ app.get(
             voucher_code,
             discount,
             status,
+            rating,
+            review,
             created_at
           FROM orders
           WHERE username = ?
@@ -1140,6 +1105,196 @@ app.get(
         success: false,
         message:
           "Gagal mengambil riwayat pesanan",
+      });
+    }
+  }
+);
+
+// ==========================================
+// RATING & ULASAN
+// ==========================================
+
+// Ambil semua review yang sudah diberikan
+app.get("/api/reviews", async (req, res) => {
+  try {
+    const result = await db.execute(`
+      SELECT
+        id,
+        username,
+        game,
+        service,
+        rating,
+        review,
+        created_at
+      FROM orders
+      WHERE rating IS NOT NULL
+      ORDER BY id DESC
+    `);
+
+    const reviews = result.rows;
+
+    let averageRating = 0;
+
+    if (reviews.length > 0) {
+      const totalRating = reviews.reduce(
+        (total, item) =>
+          total + Number(item.rating || 0),
+        0
+      );
+
+      averageRating =
+        Math.round(
+          (totalRating / reviews.length) * 10
+        ) / 10;
+    }
+
+    res.json({
+      success: true,
+      averageRating,
+      totalReviews: reviews.length,
+      reviews,
+    });
+  } catch (error) {
+    console.error(
+      "GET REVIEWS ERROR:",
+      error
+    );
+
+    res.status(500).json({
+      success: false,
+      message: "Gagal mengambil ulasan",
+    });
+  }
+});
+
+// User memberikan rating
+app.post(
+  "/api/orders/:id/review",
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        username,
+        rating,
+        review,
+      } = req.body;
+
+      if (!username) {
+        return res.status(400).json({
+          success: false,
+          message: "Username wajib diisi",
+        });
+      }
+
+      const ratingValue = Number(rating);
+
+      if (
+        !Number.isInteger(ratingValue) ||
+        ratingValue < 1 ||
+        ratingValue > 5
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Rating harus antara 1 sampai 5",
+        });
+      }
+
+      const orderResult = await db.execute({
+        sql: `
+          SELECT
+            id,
+            username,
+            status,
+            rating
+          FROM orders
+          WHERE id = ?
+          LIMIT 1
+        `,
+        args: [id],
+      });
+
+      if (orderResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Pesanan tidak ditemukan",
+        });
+      }
+
+      const order = orderResult.rows[0];
+
+      if (
+        String(order.username) !==
+        String(username)
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Pesanan ini bukan milik akun tersebut",
+        });
+      }
+
+      if (order.status !== "selesai") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Rating hanya bisa diberikan setelah pesanan selesai",
+        });
+      }
+
+      if (order.rating !== null) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Pesanan ini sudah diberi rating",
+        });
+      }
+
+      const cleanReview =
+        String(review || "").trim();
+
+      if (cleanReview.length > 500) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Ulasan maksimal 500 karakter",
+        });
+      }
+
+      await db.execute({
+        sql: `
+          UPDATE orders
+          SET
+            rating = ?,
+            review = ?
+          WHERE id = ?
+        `,
+        args: [
+          ratingValue,
+          cleanReview || null,
+          id,
+        ],
+      });
+
+      res.json({
+        success: true,
+        message:
+          "Rating dan ulasan berhasil disimpan",
+        orderId: Number(id),
+        rating: ratingValue,
+        review: cleanReview,
+      });
+    } catch (error) {
+      console.error(
+        "SUBMIT REVIEW ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Gagal menyimpan rating dan ulasan",
+        error: error.message,
       });
     }
   }
@@ -1340,6 +1495,58 @@ app.patch(
 async function startServer() {
   try {
     await initDatabase();
+
+    // ==========================================
+    // TAMBAHKAN KOLOM RATING & REVIEW
+    // ==========================================
+
+    try {
+      await db.execute(`
+        ALTER TABLE orders
+        ADD COLUMN rating INTEGER
+      `);
+    } catch (error) {
+      if (
+        !error.message ||
+        (
+          !error.message
+            .toLowerCase()
+            .includes("duplicate") &&
+          !error.message
+            .toLowerCase()
+            .includes("already exists")
+        )
+      ) {
+        console.error(
+          "GAGAL TAMBAH KOLOM RATING:",
+          error.message
+        );
+      }
+    }
+
+    try {
+      await db.execute(`
+        ALTER TABLE orders
+        ADD COLUMN review TEXT
+      `);
+    } catch (error) {
+      if (
+        !error.message ||
+        (
+          !error.message
+            .toLowerCase()
+            .includes("duplicate") &&
+          !error.message
+            .toLowerCase()
+            .includes("already exists")
+        )
+      ) {
+        console.error(
+          "GAGAL TAMBAH KOLOM REVIEW:",
+          error.message
+        );
+      }
+    }
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(
