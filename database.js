@@ -6,6 +6,10 @@ const db = createClient({
 });
 
 async function initDatabase() {
+  // ==========================================
+  // USERS
+  // ==========================================
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -14,6 +18,10 @@ async function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // ==========================================
+  // ORDERS
+  // ==========================================
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS orders (
@@ -34,30 +42,36 @@ async function initDatabase() {
   `);
 
   // ==========================================
-  // TAMBAHKAN KOLOM KE DATABASE LAMA
+  // TAMBAHKAN KOLOM ORDERS LAMA
   // ==========================================
 
-  const columns = [
+  const orderColumns = [
     ["nickname", "TEXT"],
     ["user_id", "TEXT"],
     ["server_id", "TEXT"],
     ["whatsapp", "TEXT"],
     ["note", "TEXT"],
+    ["voucher_code", "TEXT"],
+    ["discount", "INTEGER DEFAULT 0"],
   ];
 
-  for (const [column, type] of columns) {
+  for (const [column, type] of orderColumns) {
     try {
       await db.execute(`
         ALTER TABLE orders
         ADD COLUMN ${column} ${type}
       `);
 
-      console.log(`Kolom ${column} berhasil ditambahkan.`);
+      console.log(
+        `Kolom ${column} berhasil ditambahkan.`
+      );
     } catch (error) {
-      // Kalau kolom sudah ada, abaikan error.
+      const message =
+        error.message?.toLowerCase() || "";
+
       if (
-        !error.message ||
-        !error.message.toLowerCase().includes("duplicate")
+        !message.includes("duplicate") &&
+        !message.includes("already exists")
       ) {
         console.log(
           `Kolom ${column} kemungkinan sudah ada.`
@@ -65,6 +79,24 @@ async function initDatabase() {
       }
     }
   }
+
+  // ==========================================
+  // VOUCHERS
+  // ==========================================
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS vouchers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      type TEXT NOT NULL,
+      value INTEGER NOT NULL,
+      max_uses INTEGER,
+      used_count INTEGER DEFAULT 0,
+      active INTEGER DEFAULT 1,
+      expires_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   console.log("Turso database siap!");
 }

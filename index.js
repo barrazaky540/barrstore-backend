@@ -406,7 +406,7 @@ app.post("/api/users", async (req, res) => {
         INSERT INTO users (username, password)
         VALUES (?, ?)
       `,
-      args: [username, password],
+      args: [username.trim(), password],
     });
 
     res.status(201).json({
@@ -436,6 +436,441 @@ app.post("/api/users", async (req, res) => {
 });
 
 // ==========================================
+// LOGIN USER
+// ==========================================
+
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Username dan password wajib diisi",
+      });
+    }
+
+    const result = await db.execute({
+      sql: `
+        SELECT id, username, created_at
+        FROM users
+        WHERE username = ? AND password = ?
+        LIMIT 1
+      `,
+      args: [username.trim(), password],
+    });
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: "Username atau password salah",
+      });
+    }
+
+    const user = result.rows[0];
+
+    res.json({
+      success: true,
+      message: "Login berhasil",
+      user: {
+        id: Number(user.id),
+        username: user.username,
+        created_at: user.created_at,
+      },
+    });
+  } catch (error) {
+    console.error("LOGIN ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Gagal melakukan login",
+    });
+  }
+});
+
+// ==========================================
+// VOUCHER - CHECK USER
+// ==========================================
+
+app.post("/api/vouchers/check", async (req, res) => {
+  try {
+    const { code, price } = req.body;
+
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        message: "Kode voucher wajib diisi",
+      });
+    }
+
+    const originalPrice = Number(price);
+
+    if (
+      !Number.isFinite(originalPrice) ||
+      originalPrice <= 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Harga tidak valid",
+      });
+    }
+
+    const voucherCode = String(code)
+      .trim()
+      .toUpperCase();
+
+    const result = await db.execute({
+      sql: `
+        SELECT *
+        FROM vouchers
+        WHERE code = ?
+        LIMIT 1
+      `,
+      args: [voucherCode],
+    });
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Kode voucher tidak ditemukan",
+      });
+    }
+
+    const voucher = result.rows[0];
+
+    if (Number(voucher.active) !== 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Voucher sudah tidak aktif",
+      });
+    }
+
+    if (
+      voucher.max_uses !== null &&
+      voucher.max_uses !== undefined &&
+      Number(voucher.used_count) >=
+        Number(voucher.max_uses)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Kuota voucher sudah habis",
+      });
+    }
+
+    if (voucher.expires_at) {
+      const expiry = new Date(
+        voucher.expires_at
+      );
+
+      if (
+        !Number.isNaN(expiry.getTime()) &&
+        expiry.getTime() <= Date.now()
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Voucher sudah kedaluwarsa",
+        });
+      }
+    }
+
+    let discount = 0;
+
+    if (voucher.type === "percent") {
+      discount = Math.floor(
+        originalPrice *
+          (Number(voucher.value) / 100)
+      );
+    } else if (voucher.type === "nominal") {
+      discount = Number(voucher.value);
+    }
+
+    discount = Math.max(
+      0,
+      Math.min(discount, originalPrice)
+    );
+
+    const finalPrice =
+      originalPrice - discount;
+
+    res.json({
+      success: true,
+      voucher: {
+        id: Number(voucher.id),
+        code: voucher.code,
+        type: voucher.type,
+        value: Number(voucher.value),
+      },
+      originalPrice,
+      discount,
+      finalPrice,
+    });
+  } catch (error) {
+    console.error(
+      "CHECK VOUCHER ERROR:",
+      error
+    );
+
+    res.status(500).json({
+      success: false,
+      message: "Gagal memeriksa voucher",
+    });
+  }
+});
+
+// ==========================================
+// VOUCHER - ADMIN GET
+// ==========================================
+
+app.get(
+  "/api/admin/vouchers",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const result = await db.execute(`
+        SELECT
+          id,
+          code,
+          type,
+          value,
+          max_uses,
+          used_count,
+          active,
+          expires_at,
+          created_at
+        FROM vouchers
+        ORDER BY id DESC
+      `);
+
+      res.json({
+        success: true,
+        vouchers: result.rows,
+      });
+    } catch (error) {
+      console.error(
+        "GET VOUCHERS ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "Gagal mengambil voucher",
+      });
+    }
+  }
+);
+
+// ==========================================
+// VOUCHER - ADMIN CREATE
+// ==========================================
+
+app.post(
+  "/api/admin/vouchers",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      let {
+        code,
+        type,
+        value,
+        maxUses,
+        expiresAt,
+      } = req.body;
+
+      code = String(code || "")
+        .trim()
+        .toUpperCase();
+
+      type = String(type || "")
+        .trim()
+        .toLowerCase();
+
+      value = Number(value);
+
+      if (!code) {
+        return res.status(400).json({
+          success: false,
+          message: "Kode voucher wajib diisi",
+        });
+      }
+
+      if (!["percent", "nominal"].includes(type)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Tipe voucher harus percent atau nominal",
+        });
+      }
+
+      if (
+        !Number.isInteger(value) ||
+        value <= 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Nilai voucher tidak valid",
+        });
+      }
+
+      if (
+        type === "percent" &&
+        value > 100
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Diskon persentase maksimal 100%",
+        });
+      }
+
+      let parsedMaxUses = null;
+
+      if (
+        maxUses !== null &&
+        maxUses !== undefined &&
+        maxUses !== ""
+      ) {
+        parsedMaxUses = Number(maxUses);
+
+        if (
+          !Number.isInteger(parsedMaxUses) ||
+          parsedMaxUses <= 0
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Batas penggunaan voucher tidak valid",
+          });
+        }
+      }
+
+      let parsedExpiresAt = null;
+
+      if (expiresAt) {
+        const expiry = new Date(expiresAt);
+
+        if (Number.isNaN(expiry.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Tanggal kedaluwarsa tidak valid",
+          });
+        }
+
+        parsedExpiresAt = expiry.toISOString();
+      }
+
+      const result = await db.execute({
+        sql: `
+          INSERT INTO vouchers
+          (
+            code,
+            type,
+            value,
+            max_uses,
+            used_count,
+            active,
+            expires_at
+          )
+          VALUES (?, ?, ?, ?, 0, 1, ?)
+        `,
+        args: [
+          code,
+          type,
+          value,
+          parsedMaxUses,
+          parsedExpiresAt,
+        ],
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Voucher berhasil dibuat",
+        voucherId: Number(
+          result.lastInsertRowid
+        ),
+      });
+    } catch (error) {
+      if (
+        error.message &&
+        error.message.toLowerCase().includes("unique")
+      ) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "Kode voucher sudah digunakan",
+        });
+      }
+
+      console.error(
+        "CREATE VOUCHER ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "Gagal membuat voucher",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// ==========================================
+// VOUCHER - ADMIN ACTIVE / NONACTIVE
+// ==========================================
+
+app.patch(
+  "/api/admin/vouchers/:id",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { active } = req.body;
+
+      const activeValue =
+        active === true || active === 1
+          ? 1
+          : 0;
+
+      const result = await db.execute({
+        sql: `
+          UPDATE vouchers
+          SET active = ?
+          WHERE id = ?
+        `,
+        args: [activeValue, id],
+      });
+
+      if (result.rowsAffected === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Voucher tidak ditemukan",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: activeValue
+          ? "Voucher berhasil diaktifkan"
+          : "Voucher berhasil dinonaktifkan",
+        active: Boolean(activeValue),
+      });
+    } catch (error) {
+      console.error(
+        "UPDATE VOUCHER ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Gagal mengubah status voucher",
+      });
+    }
+  }
+);
+
+// ==========================================
 // CREATE ORDER
 // ==========================================
 
@@ -457,6 +892,7 @@ app.post("/api/orders", async (req, res) => {
       serverId,
       whatsapp,
       note,
+      voucherCode,
     } = req.body;
 
     if (!service || !game) {
@@ -465,6 +901,131 @@ app.post("/api/orders", async (req, res) => {
         message: "Service dan game wajib diisi",
       });
     }
+
+    const originalPrice = Number(price);
+
+    if (
+      !Number.isFinite(originalPrice) ||
+      originalPrice < 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Harga tidak valid",
+      });
+    }
+
+    let finalPrice = originalPrice;
+    let discount = 0;
+    let appliedVoucherCode = null;
+
+    // ==========================================
+    // VALIDASI VOUCHER
+    // ==========================================
+
+    if (voucherCode) {
+      const normalizedVoucherCode =
+        String(voucherCode)
+          .trim()
+          .toUpperCase();
+
+      const voucherResult = await db.execute({
+        sql: `
+          SELECT *
+          FROM vouchers
+          WHERE code = ?
+          LIMIT 1
+        `,
+        args: [normalizedVoucherCode],
+      });
+
+      if (voucherResult.rows.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Kode voucher tidak ditemukan",
+        });
+      }
+
+      const voucher =
+        voucherResult.rows[0];
+
+      if (Number(voucher.active) !== 1) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Voucher sudah tidak aktif",
+        });
+      }
+
+      if (
+        voucher.max_uses !== null &&
+        voucher.max_uses !== undefined &&
+        Number(voucher.used_count) >=
+          Number(voucher.max_uses)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Kuota voucher sudah habis",
+        });
+      }
+
+      if (voucher.expires_at) {
+        const expiry = new Date(
+          voucher.expires_at
+        );
+
+        if (
+          !Number.isNaN(expiry.getTime()) &&
+          expiry.getTime() <= Date.now()
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Voucher sudah kedaluwarsa",
+          });
+        }
+      }
+
+      if (voucher.type === "percent") {
+        discount = Math.floor(
+          originalPrice *
+            (Number(voucher.value) / 100)
+        );
+      } else if (
+        voucher.type === "nominal"
+      ) {
+        discount = Number(voucher.value);
+      }
+
+      discount = Math.max(
+        0,
+        Math.min(
+          discount,
+          originalPrice
+        )
+      );
+
+      finalPrice =
+        originalPrice - discount;
+
+      appliedVoucherCode =
+        voucher.code;
+
+      // Tambahkan jumlah pemakaian
+      await db.execute({
+        sql: `
+          UPDATE vouchers
+          SET used_count = used_count + 1
+          WHERE id = ?
+        `,
+        args: [voucher.id],
+      });
+    }
+
+    // ==========================================
+    // SIMPAN ORDER
+    // ==========================================
 
     const result = await db.execute({
       sql: `
@@ -479,33 +1040,45 @@ app.post("/api/orders", async (req, res) => {
           user_id,
           server_id,
           whatsapp,
-          note
+          note,
+          voucher_code,
+          discount
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         username || null,
         service,
         game,
         nominal || null,
-        Number(price) || 0,
+        finalPrice,
         nickname || null,
         userId || null,
         serverId || null,
         whatsapp || null,
         note || null,
+        appliedVoucherCode,
+        discount,
       ],
     });
 
+    const orderId = Number(
+      result.lastInsertRowid
+    );
+
     console.log(
       "ORDER BERHASIL:",
-      result.lastInsertRowid
+      orderId
     );
 
     return res.status(201).json({
       success: true,
       message: "Order berhasil dibuat",
-      orderId: Number(result.lastInsertRowid),
+      orderId,
+      originalPrice,
+      discount,
+      finalPrice,
+      voucherCode: appliedVoucherCode,
     });
   } catch (error) {
     console.error("ORDER ERROR:", error);
@@ -519,27 +1092,179 @@ app.post("/api/orders", async (req, res) => {
 });
 
 // ==========================================
+// RIWAYAT PESANAN USER
+// ==========================================
+
+app.get(
+  "/api/users/:username/orders",
+  async (req, res) => {
+    try {
+      const { username } = req.params;
+
+      const result = await db.execute({
+        sql: `
+          SELECT
+            id,
+            username,
+            service,
+            game,
+            nominal,
+            price,
+            nickname,
+            user_id,
+            server_id,
+            whatsapp,
+            note,
+            voucher_code,
+            discount,
+            status,
+            created_at
+          FROM orders
+          WHERE username = ?
+          ORDER BY id DESC
+        `,
+        args: [username],
+      });
+
+      res.json({
+        success: true,
+        orders: result.rows,
+      });
+    } catch (error) {
+      console.error(
+        "USER ORDERS ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Gagal mengambil riwayat pesanan",
+      });
+    }
+  }
+);
+
+// ==========================================
+// ADMIN STATISTICS
+// ==========================================
+
+app.get(
+  "/api/admin/stats",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const totalOrders = await db.execute(`
+        SELECT COUNT(*) AS total
+        FROM orders
+      `);
+
+      const totalUsers = await db.execute(`
+        SELECT COUNT(*) AS total
+        FROM users
+      `);
+
+      const totalOmzet = await db.execute(`
+        SELECT COALESCE(SUM(price), 0) AS total
+        FROM orders
+        WHERE status = 'selesai'
+      `);
+
+      const pending = await db.execute(`
+        SELECT COUNT(*) AS total
+        FROM orders
+        WHERE status = 'pending'
+      `);
+
+      const diproses = await db.execute(`
+        SELECT COUNT(*) AS total
+        FROM orders
+        WHERE status = 'diproses'
+      `);
+
+      const selesai = await db.execute(`
+        SELECT COUNT(*) AS total
+        FROM orders
+        WHERE status = 'selesai'
+      `);
+
+      const dibatalkan = await db.execute(`
+        SELECT COUNT(*) AS total
+        FROM orders
+        WHERE status = 'dibatalkan'
+      `);
+
+      res.json({
+        success: true,
+        stats: {
+          totalOrders: Number(
+            totalOrders.rows[0].total
+          ),
+          totalUsers: Number(
+            totalUsers.rows[0].total
+          ),
+          totalOmzet: Number(
+            totalOmzet.rows[0].total
+          ),
+          pending: Number(
+            pending.rows[0].total
+          ),
+          diproses: Number(
+            diproses.rows[0].total
+          ),
+          selesai: Number(
+            selesai.rows[0].total
+          ),
+          dibatalkan: Number(
+            dibatalkan.rows[0].total
+          ),
+        },
+      });
+    } catch (error) {
+      console.error(
+        "ADMIN STATS ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Gagal mengambil statistik admin",
+      });
+    }
+  }
+);
+
+// ==========================================
 // GET ORDERS ADMIN
 // ==========================================
 
-app.get("/api/orders", checkAdmin, async (req, res) => {
-  try {
-    const result = await db.execute(`
-      SELECT *
-      FROM orders
-      ORDER BY id DESC
-    `);
+app.get(
+  "/api/orders",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const result = await db.execute(`
+        SELECT *
+        FROM orders
+        ORDER BY id DESC
+      `);
 
-    res.json(result.rows);
-  } catch (error) {
-    console.error("GET ORDERS ERROR:", error);
+      res.json(result.rows);
+    } catch (error) {
+      console.error(
+        "GET ORDERS ERROR:",
+        error
+      );
 
-    res.status(500).json({
-      success: false,
-      message: "Gagal mengambil data order",
-    });
+      res.status(500).json({
+        success: false,
+        message:
+          "Gagal mengambil data order",
+      });
+    }
   }
-});
+);
 
 // ==========================================
 // UPDATE STATUS ORDER
@@ -580,13 +1305,15 @@ app.patch(
       if (result.rowsAffected === 0) {
         return res.status(404).json({
           success: false,
-          message: "Pesanan tidak ditemukan",
+          message:
+            "Pesanan tidak ditemukan",
         });
       }
 
       res.json({
         success: true,
-        message: "Status pesanan berhasil diperbarui",
+        message:
+          "Status pesanan berhasil diperbarui",
         orderId: Number(id),
         status,
       });
@@ -598,7 +1325,8 @@ app.patch(
 
       res.status(500).json({
         success: false,
-        message: "Gagal memperbarui status pesanan",
+        message:
+          "Gagal memperbarui status pesanan",
         error: error.message,
       });
     }
