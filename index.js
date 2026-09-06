@@ -5,78 +5,112 @@ const { db, initDatabase } = require("./database");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// =========================
-// MIDDLEWARE
-// =========================
 app.use(cors());
 app.use(express.json());
 
-// =========================
-// ADMIN AUTHENTICATION
-// =========================
+// ==========================================
+// ADMIN AUTH
+// ==========================================
+
 function checkAdmin(req, res, next) {
   const adminKey = req.headers["x-admin-key"];
 
   if (!process.env.ADMIN_KEY) {
     return res.status(500).json({
       success: false,
-      message: "ADMIN_KEY belum diatur di Vercel"
+      message: "ADMIN_KEY belum diatur di Vercel",
     });
   }
 
   if (adminKey !== process.env.ADMIN_KEY) {
     return res.status(401).json({
       success: false,
-      message: "Password admin salah"
+      message: "Password admin salah",
     });
   }
 
   next();
 }
 
-// =========================
+// ==========================================
 // HOME
-// =========================
+// ==========================================
+
 app.get("/", (req, res) => {
   res.json({
     success: true,
-    message: "Halo, ini backend BarrStore!"
+    message: "Halo, ini backend BarrStore!",
   });
 });
 
-// =========================
-// CEK ADMIN KEY
-// =========================
+// ==========================================
+// CHECK ADMIN
+// ==========================================
+
 app.get("/api/check-admin", (req, res) => {
   res.json({
     adminKeyExists: !!process.env.ADMIN_KEY,
     adminKeyLength: process.env.ADMIN_KEY
       ? process.env.ADMIN_KEY.length
-      : 0
+      : 0,
   });
 });
 
-// =========================
-// DATA GAME
-// =========================
+// ==========================================
+// GAMES
+// ==========================================
+
 app.get("/api/games", (req, res) => {
   const games = [
-    { id: "ml", name: "Mobile Legends", icon: "⚔️" },
-    { id: "ff", name: "Free Fire", icon: "🔥" },
-    { id: "pubg", name: "PUBG Mobile", icon: "🎯" },
-    { id: "valo", name: "Valorant", icon: "🎮" },
-    { id: "genshin", name: "Genshin Impact", icon: "✨" },
-    { id: "codm", name: "Call of Duty Mobile", icon: "🪖" },
-    { id: "hok", name: "Honor of Kings", icon: "👑" },
-    { id: "aov", name: "Arena of Valor", icon: "🏹" }
+    {
+      id: "ml",
+      name: "Mobile Legends",
+      icon: "⚔️",
+    },
+    {
+      id: "ff",
+      name: "Free Fire",
+      icon: "🔥",
+    },
+    {
+      id: "pubg",
+      name: "PUBG Mobile",
+      icon: "🎯",
+    },
+    {
+      id: "valo",
+      name: "Valorant",
+      icon: "🎮",
+    },
+    {
+      id: "genshin",
+      name: "Genshin Impact",
+      icon: "✨",
+    },
+    {
+      id: "codm",
+      name: "Call of Duty Mobile",
+      icon: "🪖",
+    },
+    {
+      id: "hok",
+      name: "Honor of Kings",
+      icon: "👑",
+    },
+    {
+      id: "aov",
+      name: "Arena of Valor",
+      icon: "🏹",
+    },
   ];
 
   res.json(games);
 });
 
-// =========================
-// DATA JOKI GAME
-// =========================
+// ==========================================
+// JOKI GAMES
+// ==========================================
+
 app.get("/api/joki-games", (req, res) => {
   const jokiGames = [
     {
@@ -86,11 +120,13 @@ app.get("/api/joki-games", (req, res) => {
         "Warrior",
         "Elite",
         "Master",
+        "Grandmaster",
         "Epic",
         "Legend",
         "Mythic",
-        "Immortal"
-      ]
+        "Mythical Honor",
+        "Mythical Glory",
+      ],
     },
     {
       id: "ff",
@@ -104,8 +140,8 @@ app.get("/api/joki-games", (req, res) => {
         "Heroic",
         "Elite Heroic",
         "Master",
-        "Grandmaster"
-      ]
+        "Grandmaster",
+      ],
     },
     {
       id: "pubg",
@@ -117,8 +153,10 @@ app.get("/api/joki-games", (req, res) => {
         "Platinum",
         "Diamond",
         "Crown",
-        "Ace"
-      ]
+        "Ace",
+        "Ace Master",
+        "Ace Dominator",
+      ],
     },
     {
       id: "valo",
@@ -132,8 +170,8 @@ app.get("/api/joki-games", (req, res) => {
         "Diamond",
         "Ascendant",
         "Immortal",
-        "Radiant"
-      ]
+        "Radiant",
+      ],
     },
     {
       id: "genshin",
@@ -144,8 +182,9 @@ app.get("/api/joki-games", (req, res) => {
         "AR 21-30",
         "AR 31-40",
         "AR 41-50",
-        "AR 51-60"
-      ]
+        "AR 51-55",
+        "AR 56-60",
+      ],
     },
     {
       id: "codm",
@@ -156,8 +195,9 @@ app.get("/api/joki-games", (req, res) => {
         "Elite",
         "Pro",
         "Master",
-        "Legendary"
-      ]
+        "Grandmaster",
+        "Legendary",
+      ],
     },
     {
       id: "hok",
@@ -169,29 +209,33 @@ app.get("/api/joki-games", (req, res) => {
         "Platinum",
         "Diamond",
         "Master",
-        "King"
-      ]
+        "Grandmaster",
+        "King",
+      ],
     },
     {
       id: "aov",
       name: "Arena of Valor",
       ranks: [
-        "Rookie",
-        "Elite",
+        "Bronze",
+        "Silver",
+        "Gold",
+        "Platinum",
+        "Diamond",
+        "Veteran",
         "Master",
-        "Grandmaster",
-        "Legend",
-        "King"
-      ]
-    }
+        "Conqueror",
+      ],
+    },
   ];
 
   res.json(jokiGames);
 });
 
-// =========================
-// DATA AKUN
-// =========================
+// ==========================================
+// AKUN
+// ==========================================
+
 app.get("/api/akun", (req, res) => {
   const akunList = [
     {
@@ -200,7 +244,7 @@ app.get("/api/akun", (req, res) => {
       rank: "Mythic 3",
       level: 62,
       price: 349000,
-      note: "40+ skin, 12 hero epic."
+      note: "40+ skin, 12 hero epic.",
     },
     {
       id: 2,
@@ -208,7 +252,7 @@ app.get("/api/akun", (req, res) => {
       rank: "Heroic",
       level: 71,
       price: 299000,
-      note: "Bundle langka, 8 karakter max level."
+      note: "Bundle langka, 8 karakter max level.",
     },
     {
       id: 3,
@@ -216,7 +260,7 @@ app.get("/api/akun", (req, res) => {
       rank: "Legend",
       level: 44,
       price: 189000,
-      note: "Cocok pemula, semua hero terbuka."
+      note: "Cocok pemula, semua hero terbuka.",
     },
     {
       id: 4,
@@ -224,7 +268,7 @@ app.get("/api/akun", (req, res) => {
       rank: "Ace",
       level: 55,
       price: 459000,
-      note: "Outfit season 1, RP tier 90+."
+      note: "Outfit season 1, RP tier 90+.",
     },
     {
       id: 5,
@@ -232,7 +276,7 @@ app.get("/api/akun", (req, res) => {
       rank: "Crown",
       level: 38,
       price: 259000,
-      note: "Cocok naik rank cepat, skin senjata lengkap."
+      note: "Cocok naik rank cepat, skin senjata lengkap.",
     },
     {
       id: 6,
@@ -240,7 +284,7 @@ app.get("/api/akun", (req, res) => {
       rank: "Grandmaster",
       level: 65,
       price: 379000,
-      note: "Bundle eksklusif, karakter max evolusi."
+      note: "Bundle eksklusif, karakter max evolusi.",
     },
     {
       id: 7,
@@ -248,7 +292,7 @@ app.get("/api/akun", (req, res) => {
       rank: "Epic",
       level: 35,
       price: 149000,
-      note: "Winrate tinggi, akun jarang dipakai."
+      note: "Winrate tinggi, akun jarang dipakai.",
     },
     {
       id: 8,
@@ -256,7 +300,7 @@ app.get("/api/akun", (req, res) => {
       rank: "Platinum",
       level: 40,
       price: 179000,
-      note: "Skin gun langka, elite pass lengkap."
+      note: "Skin gun langka, elite pass lengkap.",
     },
     {
       id: 9,
@@ -264,7 +308,7 @@ app.get("/api/akun", (req, res) => {
       rank: "Immortal 1",
       level: 140,
       price: 899000,
-      note: "15 skin senjata premium, semua agent terbuka."
+      note: "15 skin senjata premium, semua agent terbuka.",
     },
     {
       id: 10,
@@ -272,7 +316,7 @@ app.get("/api/akun", (req, res) => {
       rank: "Diamond 2",
       level: 78,
       price: 449000,
-      note: "Battle pass lengkap, skin Vandal langka."
+      note: "Battle pass lengkap, skin Vandal langka.",
     },
     {
       id: 11,
@@ -280,7 +324,7 @@ app.get("/api/akun", (req, res) => {
       rank: "AR 58",
       level: 58,
       price: 649000,
-      note: "5 karakter 5★ + weapon signature."
+      note: "5 karakter 5★ + weapon signature.",
     },
     {
       id: 12,
@@ -288,7 +332,7 @@ app.get("/api/akun", (req, res) => {
       rank: "AR 45",
       level: 45,
       price: 349000,
-      note: "3 karakter 5★, cocok lanjut progress."
+      note: "3 karakter 5★, cocok lanjut progress.",
     },
     {
       id: 13,
@@ -296,7 +340,7 @@ app.get("/api/akun", (req, res) => {
       rank: "Legendary",
       level: 90,
       price: 399000,
-      note: "Skin senjata mistic lengkap."
+      note: "Skin senjata mistic lengkap.",
     },
     {
       id: 14,
@@ -304,7 +348,7 @@ app.get("/api/akun", (req, res) => {
       rank: "King",
       level: 60,
       price: 379000,
-      note: "Hero pool lengkap, skin epic banyak."
+      note: "Hero pool lengkap, skin epic banyak.",
     },
     {
       id: 15,
@@ -312,16 +356,17 @@ app.get("/api/akun", (req, res) => {
       rank: "Legend",
       level: 55,
       price: 229000,
-      note: "Skin langka, hero pool lengkap."
-    }
+      note: "Skin langka, hero pool lengkap.",
+    },
   ];
 
   res.json(akunList);
 });
 
-// =========================
-// USERS - LIHAT USER
-// =========================
+// ==========================================
+// USERS
+// ==========================================
+
 app.get("/api/users", async (req, res) => {
   try {
     const result = await db.execute(`
@@ -336,14 +381,15 @@ app.get("/api/users", async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Gagal mengambil data user"
+      message: "Gagal mengambil data user",
     });
   }
 });
 
-// =========================
-// USERS - REGISTER
-// =========================
+// ==========================================
+// REGISTER USER
+// ==========================================
+
 app.post("/api/users", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -351,7 +397,7 @@ app.post("/api/users", async (req, res) => {
     if (!username || !password) {
       return res.status(400).json({
         success: false,
-        message: "Username dan password wajib diisi"
+        message: "Username dan password wajib diisi",
       });
     }
 
@@ -360,20 +406,22 @@ app.post("/api/users", async (req, res) => {
         INSERT INTO users (username, password)
         VALUES (?, ?)
       `,
-      args: [username, password]
+      args: [username, password],
     });
 
     res.status(201).json({
       success: true,
       message: "User berhasil dibuat",
-      userId: Number(result.lastInsertRowid)
+      userId: Number(result.lastInsertRowid),
     });
-
   } catch (error) {
-    if (error.message && error.message.includes("UNIQUE")) {
+    if (
+      error.message &&
+      error.message.includes("UNIQUE")
+    ) {
       return res.status(409).json({
         success: false,
-        message: "Username sudah digunakan"
+        message: "Username sudah digunakan",
       });
     }
 
@@ -382,14 +430,15 @@ app.post("/api/users", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Gagal membuat user",
-      error: error.message
+      error: error.message,
     });
   }
 });
 
-// =========================
-// ORDER - BUAT ORDER
-// =========================
+// ==========================================
+// CREATE ORDER
+// ==========================================
+
 app.post("/api/orders", async (req, res) => {
   console.log("=================================");
   console.log("ORDER MASUK");
@@ -402,53 +451,77 @@ app.post("/api/orders", async (req, res) => {
       service,
       game,
       nominal,
-      price
+      price,
+      nickname,
+      userId,
+      serverId,
+      whatsapp,
+      note,
     } = req.body;
 
     if (!service || !game) {
       return res.status(400).json({
         success: false,
-        message: "Service dan game wajib diisi"
+        message: "Service dan game wajib diisi",
       });
     }
 
     const result = await db.execute({
       sql: `
         INSERT INTO orders
-        (username, service, game, nominal, price)
-        VALUES (?, ?, ?, ?, ?)
+        (
+          username,
+          service,
+          game,
+          nominal,
+          price,
+          nickname,
+          user_id,
+          server_id,
+          whatsapp,
+          note
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         username || null,
         service,
         game,
         nominal || null,
-        Number(price) || 0
-      ]
+        Number(price) || 0,
+        nickname || null,
+        userId || null,
+        serverId || null,
+        whatsapp || null,
+        note || null,
+      ],
     });
 
-    console.log("ORDER BERHASIL:", result.lastInsertRowid);
+    console.log(
+      "ORDER BERHASIL:",
+      result.lastInsertRowid
+    );
 
     return res.status(201).json({
       success: true,
       message: "Order berhasil dibuat",
-      orderId: Number(result.lastInsertRowid)
+      orderId: Number(result.lastInsertRowid),
     });
-
   } catch (error) {
     console.error("ORDER ERROR:", error);
 
     return res.status(500).json({
       success: false,
       message: "Gagal membuat order",
-      error: error.message
+      error: error.message,
     });
   }
 });
 
-// =========================
-// ADMIN - LIHAT SEMUA ORDER
-// =========================
+// ==========================================
+// GET ORDERS ADMIN
+// ==========================================
+
 app.get("/api/orders", checkAdmin, async (req, res) => {
   try {
     const result = await db.execute(`
@@ -458,87 +531,99 @@ app.get("/api/orders", checkAdmin, async (req, res) => {
     `);
 
     res.json(result.rows);
-
   } catch (error) {
     console.error("GET ORDERS ERROR:", error);
 
     res.status(500).json({
       success: false,
-      message: "Gagal mengambil data order"
+      message: "Gagal mengambil data order",
     });
   }
 });
 
-// =========================
-// ADMIN - UBAH STATUS ORDER
-// =========================
-app.patch("/api/orders/:id/status", checkAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
+// ==========================================
+// UPDATE STATUS ORDER
+// ==========================================
 
-    const allowedStatus = [
-      "pending",
-      "diproses",
-      "selesai",
-      "dibatalkan"
-    ];
+app.patch(
+  "/api/orders/:id/status",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
 
-    if (!allowedStatus.includes(status)) {
-      return res.status(400).json({
+      const allowedStatus = [
+        "pending",
+        "diproses",
+        "selesai",
+        "dibatalkan",
+      ];
+
+      if (!allowedStatus.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Status tidak valid",
+          allowedStatus,
+        });
+      }
+
+      const result = await db.execute({
+        sql: `
+          UPDATE orders
+          SET status = ?
+          WHERE id = ?
+        `,
+        args: [status, id],
+      });
+
+      if (result.rowsAffected === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Pesanan tidak ditemukan",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Status pesanan berhasil diperbarui",
+        orderId: Number(id),
+        status,
+      });
+    } catch (error) {
+      console.error(
+        "UPDATE STATUS ERROR:",
+        error
+      );
+
+      res.status(500).json({
         success: false,
-        message: "Status tidak valid",
-        allowedStatus
+        message: "Gagal memperbarui status pesanan",
+        error: error.message,
       });
     }
-
-    const result = await db.execute({
-      sql: `
-        UPDATE orders
-        SET status = ?
-        WHERE id = ?
-      `,
-      args: [status, id]
-    });
-
-    if (result.rowsAffected === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Pesanan tidak ditemukan"
-      });
-    }
-
-    res.json({
-      success: true,
-      message: "Status pesanan berhasil diperbarui",
-      orderId: Number(id),
-      status
-    });
-
-  } catch (error) {
-    console.error("UPDATE STATUS ERROR:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Gagal memperbarui status pesanan",
-      error: error.message
-    });
   }
-});
+);
 
-// =========================
+// ==========================================
 // START SERVER
-// =========================
+// ==========================================
+
 async function startServer() {
   try {
     await initDatabase();
 
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server jalan di port ${PORT}`);
+      console.log(
+        `Server jalan di port ${PORT}`
+      );
     });
-
   } catch (error) {
-    console.error("Gagal menjalankan database:", error);
+    console.error(
+      "Gagal menjalankan database:",
+      error
+    );
+
     process.exit(1);
   }
 }

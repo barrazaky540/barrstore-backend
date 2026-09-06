@@ -23,10 +23,48 @@ async function initDatabase() {
       game TEXT NOT NULL,
       nominal TEXT,
       price INTEGER,
+      nickname TEXT,
+      user_id TEXT,
+      server_id TEXT,
+      whatsapp TEXT,
+      note TEXT,
       status TEXT DEFAULT 'pending',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // ==========================================
+  // TAMBAHKAN KOLOM KE DATABASE LAMA
+  // ==========================================
+
+  const columns = [
+    ["nickname", "TEXT"],
+    ["user_id", "TEXT"],
+    ["server_id", "TEXT"],
+    ["whatsapp", "TEXT"],
+    ["note", "TEXT"],
+  ];
+
+  for (const [column, type] of columns) {
+    try {
+      await db.execute(`
+        ALTER TABLE orders
+        ADD COLUMN ${column} ${type}
+      `);
+
+      console.log(`Kolom ${column} berhasil ditambahkan.`);
+    } catch (error) {
+      // Kalau kolom sudah ada, abaikan error.
+      if (
+        !error.message ||
+        !error.message.toLowerCase().includes("duplicate")
+      ) {
+        console.log(
+          `Kolom ${column} kemungkinan sudah ada.`
+        );
+      }
+    }
+  }
 
   console.log("Turso database siap!");
 }
