@@ -33,6 +33,14 @@ function checkAdmin(req, res, next) {
 }
 
 // ==========================================
+// HELPER
+// ==========================================
+
+function makeTicketCode(orderId) {
+  return `BR-JOKI-${String(orderId).padStart(4, "0")}`;
+}
+
+// ==========================================
 // HOME
 // ==========================================
 
@@ -61,7 +69,7 @@ app.get("/api/check-admin", (req, res) => {
 // ==========================================
 
 app.get("/api/games", (req, res) => {
-  const games = [
+  res.json([
     {
       id: "ml",
       name: "Mobile Legends",
@@ -102,9 +110,7 @@ app.get("/api/games", (req, res) => {
       name: "Arena of Valor",
       icon: "🏹",
     },
-  ];
-
-  res.json(games);
+  ]);
 });
 
 // ==========================================
@@ -112,7 +118,7 @@ app.get("/api/games", (req, res) => {
 // ==========================================
 
 app.get("/api/joki-games", (req, res) => {
-  const jokiGames = [
+  res.json([
     {
       id: "ml",
       name: "Mobile Legends",
@@ -227,9 +233,7 @@ app.get("/api/joki-games", (req, res) => {
         "Conqueror",
       ],
     },
-  ];
-
-  res.json(jokiGames);
+  ]);
 });
 
 // ==========================================
@@ -237,7 +241,7 @@ app.get("/api/joki-games", (req, res) => {
 // ==========================================
 
 app.get("/api/akun", (req, res) => {
-  const akunList = [
+  res.json([
     {
       id: 1,
       game: "Mobile Legends",
@@ -358,9 +362,7 @@ app.get("/api/akun", (req, res) => {
       price: 229000,
       note: "Skin langka, hero pool lengkap.",
     },
-  ];
-
-  res.json(akunList);
+  ]);
 });
 
 // ==========================================
@@ -387,7 +389,7 @@ app.get("/api/users", async (req, res) => {
 });
 
 // ==========================================
-// REGISTER USER
+// REGISTER
 // ==========================================
 
 app.post("/api/users", async (req, res) => {
@@ -401,12 +403,14 @@ app.post("/api/users", async (req, res) => {
       });
     }
 
+    const cleanUsername = username.trim();
+
     const result = await db.execute({
       sql: `
         INSERT INTO users (username, password)
         VALUES (?, ?)
       `,
-      args: [username.trim(), password],
+      args: [cleanUsername, password],
     });
 
     res.status(201).json({
@@ -417,7 +421,7 @@ app.post("/api/users", async (req, res) => {
   } catch (error) {
     if (
       error.message &&
-      error.message.includes("UNIQUE")
+      error.message.toLowerCase().includes("unique")
     ) {
       return res.status(409).json({
         success: false,
@@ -436,7 +440,7 @@ app.post("/api/users", async (req, res) => {
 });
 
 // ==========================================
-// LOGIN USER
+// LOGIN
 // ==========================================
 
 app.post("/api/login", async (req, res) => {
@@ -489,7 +493,7 @@ app.post("/api/login", async (req, res) => {
 });
 
 // ==========================================
-// VOUCHER - CHECK USER
+// VOUCHER CHECK
 // ==========================================
 
 app.post("/api/vouchers/check", async (req, res) => {
@@ -610,7 +614,7 @@ app.post("/api/vouchers/check", async (req, res) => {
 });
 
 // ==========================================
-// VOUCHER - ADMIN GET
+// ADMIN VOUCHERS
 // ==========================================
 
 app.get(
@@ -647,10 +651,6 @@ app.get(
     }
   }
 );
-
-// ==========================================
-// VOUCHER - ADMIN CREATE
-// ==========================================
 
 app.post(
   "/api/admin/vouchers",
@@ -777,8 +777,7 @@ app.post(
       ) {
         return res.status(409).json({
           success: false,
-          message:
-            "Kode voucher sudah digunakan",
+          message: "Kode voucher sudah digunakan",
         });
       }
 
@@ -792,10 +791,6 @@ app.post(
     }
   }
 );
-
-// ==========================================
-// VOUCHER - ADMIN ACTIVE / NONACTIVE
-// ==========================================
 
 app.patch(
   "/api/admin/vouchers/:id",
@@ -836,8 +831,7 @@ app.patch(
 
       res.status(500).json({
         success: false,
-        message:
-          "Gagal mengubah status voucher",
+        message: "Gagal mengubah status voucher",
       });
     }
   }
@@ -914,8 +908,7 @@ app.post("/api/orders", async (req, res) => {
       if (voucherResult.rows.length === 0) {
         return res.status(400).json({
           success: false,
-          message:
-            "Kode voucher tidak ditemukan",
+          message: "Kode voucher tidak ditemukan",
         });
       }
 
@@ -924,8 +917,7 @@ app.post("/api/orders", async (req, res) => {
       if (Number(voucher.active) !== 1) {
         return res.status(400).json({
           success: false,
-          message:
-            "Voucher sudah tidak aktif",
+          message: "Voucher sudah tidak aktif",
         });
       }
 
@@ -937,15 +929,12 @@ app.post("/api/orders", async (req, res) => {
       ) {
         return res.status(400).json({
           success: false,
-          message:
-            "Kuota voucher sudah habis",
+          message: "Kuota voucher sudah habis",
         });
       }
 
       if (voucher.expires_at) {
-        const expiry = new Date(
-          voucher.expires_at
-        );
+        const expiry = new Date(voucher.expires_at);
 
         if (
           !Number.isNaN(expiry.getTime()) &&
@@ -953,8 +942,7 @@ app.post("/api/orders", async (req, res) => {
         ) {
           return res.status(400).json({
             success: false,
-            message:
-              "Voucher sudah kedaluwarsa",
+            message: "Voucher sudah kedaluwarsa",
           });
         }
       }
@@ -973,11 +961,8 @@ app.post("/api/orders", async (req, res) => {
         Math.min(discount, originalPrice)
       );
 
-      finalPrice =
-        originalPrice - discount;
-
-      appliedVoucherCode =
-        voucher.code;
+      finalPrice = originalPrice - discount;
+      appliedVoucherCode = voucher.code;
 
       await db.execute({
         sql: `
@@ -1028,9 +1013,40 @@ app.post("/api/orders", async (req, res) => {
       ],
     });
 
-    const orderId = Number(
-      result.lastInsertRowid
-    );
+    const orderId = Number(result.lastInsertRowid);
+
+    // ==========================================
+    // BUAT TIKET JOKI OTOMATIS
+    // ==========================================
+
+    let ticket = null;
+
+    if (service === "joki") {
+      const ticketCode = makeTicketCode(orderId);
+
+      const ticketResult = await db.execute({
+        sql: `
+          INSERT INTO joki_tickets
+          (
+            ticket_code,
+            order_id,
+            worker_id,
+            status,
+            progress
+          )
+          VALUES (?, ?, NULL, 'menunggu_worker', 0)
+        `,
+        args: [ticketCode, orderId],
+      });
+
+      ticket = {
+        id: Number(ticketResult.lastInsertRowid),
+        ticketCode,
+        status: "menunggu_worker",
+        progress: 0,
+        worker: null,
+      };
+    }
 
     console.log("ORDER BERHASIL:", orderId);
 
@@ -1042,6 +1058,7 @@ app.post("/api/orders", async (req, res) => {
       discount,
       finalPrice,
       voucherCode: appliedVoucherCode,
+      ticket,
     });
   } catch (error) {
     console.error("ORDER ERROR:", error);
@@ -1067,26 +1084,44 @@ app.get(
       const result = await db.execute({
         sql: `
           SELECT
-            id,
-            username,
-            service,
-            game,
-            nominal,
-            price,
-            nickname,
-            user_id,
-            server_id,
-            whatsapp,
-            note,
-            voucher_code,
-            discount,
-            status,
-            rating,
-            review,
-            created_at
-          FROM orders
-          WHERE username = ?
-          ORDER BY id DESC
+            o.id,
+            o.username,
+            o.service,
+            o.game,
+            o.nominal,
+            o.price,
+            o.nickname,
+            o.user_id,
+            o.server_id,
+            o.whatsapp,
+            o.note,
+            o.voucher_code,
+            o.discount,
+            o.status,
+            o.rating,
+            o.review,
+            o.created_at,
+
+            jt.id AS ticket_id,
+            jt.ticket_code,
+            jt.status AS ticket_status,
+            jt.progress AS ticket_progress,
+            jt.worker_id,
+
+            w.name AS worker_name,
+            w.whatsapp AS worker_whatsapp
+
+          FROM orders o
+
+          LEFT JOIN joki_tickets jt
+            ON jt.order_id = o.id
+
+          LEFT JOIN workers w
+            ON w.id = jt.worker_id
+
+          WHERE o.username = ?
+
+          ORDER BY o.id DESC
         `,
         args: [username],
       });
@@ -1096,25 +1131,79 @@ app.get(
         orders: result.rows,
       });
     } catch (error) {
-      console.error(
-        "USER ORDERS ERROR:",
-        error
-      );
+      console.error("USER ORDERS ERROR:", error);
 
       res.status(500).json({
         success: false,
-        message:
-          "Gagal mengambil riwayat pesanan",
+        message: "Gagal mengambil riwayat pesanan",
       });
     }
   }
 );
 
 // ==========================================
-// RATING & ULASAN
+// USER JOKI TICKETS
 // ==========================================
 
-// Ambil semua review yang sudah diberikan
+app.get(
+  "/api/users/:username/joki-tickets",
+  async (req, res) => {
+    try {
+      const { username } = req.params;
+
+      const result = await db.execute({
+        sql: `
+          SELECT
+            jt.id,
+            jt.ticket_code,
+            jt.order_id,
+            jt.status,
+            jt.progress,
+            jt.created_at,
+            jt.updated_at,
+
+            o.game,
+            o.nominal,
+            o.nickname,
+            o.whatsapp AS customer_whatsapp,
+
+            w.name AS worker_name,
+            w.whatsapp AS worker_whatsapp
+
+          FROM joki_tickets jt
+
+          INNER JOIN orders o
+            ON o.id = jt.order_id
+
+          LEFT JOIN workers w
+            ON w.id = jt.worker_id
+
+          WHERE o.username = ?
+
+          ORDER BY jt.id DESC
+        `,
+        args: [username],
+      });
+
+      res.json({
+        success: true,
+        tickets: result.rows,
+      });
+    } catch (error) {
+      console.error("USER TICKETS ERROR:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Gagal mengambil tiket Joki",
+      });
+    }
+  }
+);
+
+// ==========================================
+// REVIEWS
+// ==========================================
+
 app.get("/api/reviews", async (req, res) => {
   try {
     const result = await db.execute(`
@@ -1155,10 +1244,7 @@ app.get("/api/reviews", async (req, res) => {
       reviews,
     });
   } catch (error) {
-    console.error(
-      "GET REVIEWS ERROR:",
-      error
-    );
+    console.error("GET REVIEWS ERROR:", error);
 
     res.status(500).json({
       success: false,
@@ -1167,7 +1253,6 @@ app.get("/api/reviews", async (req, res) => {
   }
 });
 
-// User memberikan rating
 app.post(
   "/api/orders/:id/review",
   async (req, res) => {
@@ -1195,8 +1280,7 @@ app.post(
       ) {
         return res.status(400).json({
           success: false,
-          message:
-            "Rating harus antara 1 sampai 5",
+          message: "Rating harus antara 1 sampai 5",
         });
       }
 
@@ -1285,10 +1369,7 @@ app.post(
         review: cleanReview,
       });
     } catch (error) {
-      console.error(
-        "SUBMIT REVIEW ERROR:",
-        error
-      );
+      console.error("SUBMIT REVIEW ERROR:", error);
 
       res.status(500).json({
         success: false,
@@ -1376,22 +1457,18 @@ app.get(
         },
       });
     } catch (error) {
-      console.error(
-        "ADMIN STATS ERROR:",
-        error
-      );
+      console.error("ADMIN STATS ERROR:", error);
 
       res.status(500).json({
         success: false,
-        message:
-          "Gagal mengambil statistik admin",
+        message: "Gagal mengambil statistik admin",
       });
     }
   }
 );
 
 // ==========================================
-// GET ORDERS ADMIN
+// ADMIN GET ORDERS
 // ==========================================
 
 app.get(
@@ -1400,22 +1477,30 @@ app.get(
   async (req, res) => {
     try {
       const result = await db.execute(`
-        SELECT *
-        FROM orders
-        ORDER BY id DESC
+        SELECT
+          o.*,
+          jt.id AS ticket_id,
+          jt.ticket_code,
+          jt.status AS ticket_status,
+          jt.progress AS ticket_progress,
+          jt.worker_id,
+          w.name AS worker_name,
+          w.whatsapp AS worker_whatsapp
+        FROM orders o
+        LEFT JOIN joki_tickets jt
+          ON jt.order_id = o.id
+        LEFT JOIN workers w
+          ON w.id = jt.worker_id
+        ORDER BY o.id DESC
       `);
 
       res.json(result.rows);
     } catch (error) {
-      console.error(
-        "GET ORDERS ERROR:",
-        error
-      );
+      console.error("GET ORDERS ERROR:", error);
 
       res.status(500).json({
         success: false,
-        message:
-          "Gagal mengambil data order",
+        message: "Gagal mengambil data order",
       });
     }
   }
@@ -1460,28 +1545,687 @@ app.patch(
       if (result.rowsAffected === 0) {
         return res.status(404).json({
           success: false,
-          message:
-            "Pesanan tidak ditemukan",
+          message: "Pesanan tidak ditemukan",
+        });
+      }
+
+      // Sinkronkan tiket Joki jika ada
+      if (status === "selesai") {
+        await db.execute({
+          sql: `
+            UPDATE joki_tickets
+            SET
+              status = 'selesai',
+              progress = 100,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE order_id = ?
+          `,
+          args: [id],
+        });
+      }
+
+      if (status === "dibatalkan") {
+        await db.execute({
+          sql: `
+            UPDATE joki_tickets
+            SET
+              status = 'dibatalkan',
+              updated_at = CURRENT_TIMESTAMP
+            WHERE order_id = ?
+          `,
+          args: [id],
+        });
+      }
+
+      if (status === "diproses") {
+        await db.execute({
+          sql: `
+            UPDATE joki_tickets
+            SET
+              status = 'diproses',
+              updated_at = CURRENT_TIMESTAMP
+            WHERE order_id = ?
+          `,
+          args: [id],
         });
       }
 
       res.json({
         success: true,
-        message:
-          "Status pesanan berhasil diperbarui",
+        message: "Status pesanan berhasil diperbarui",
         orderId: Number(id),
         status,
       });
     } catch (error) {
+      console.error("UPDATE STATUS ERROR:", error);
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Gagal memperbarui status pesanan",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// ==========================================
+// ADMIN - GET WORKERS
+// ==========================================
+
+app.get(
+  "/api/admin/workers",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const result = await db.execute(`
+        SELECT
+          id,
+          name,
+          whatsapp,
+          active,
+          created_at
+        FROM workers
+        ORDER BY id DESC
+      `);
+
+      res.json({
+        success: true,
+        workers: result.rows,
+      });
+    } catch (error) {
+      console.error("GET WORKERS ERROR:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Gagal mengambil data worker",
+      });
+    }
+  }
+);
+
+// ==========================================
+// ADMIN - CREATE WORKER
+// ==========================================
+
+app.post(
+  "/api/admin/workers",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      let { name, whatsapp } = req.body;
+
+      name = String(name || "").trim();
+      whatsapp = String(whatsapp || "")
+        .replace(/\D/g, "");
+
+      if (!name || !whatsapp) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Nama dan nomor WhatsApp wajib diisi",
+        });
+      }
+
+      // Kalau nomor dimasukkan 08xxxx
+      // otomatis diubah menjadi 628xxxx
+      if (whatsapp.startsWith("8")) {
+        whatsapp = `62${whatsapp}`;
+      }
+
+      const result = await db.execute({
+        sql: `
+          INSERT INTO workers
+          (
+            name,
+            whatsapp,
+            active
+          )
+          VALUES (?, ?, 1)
+        `,
+        args: [name, whatsapp],
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Worker berhasil ditambahkan",
+        workerId: Number(result.lastInsertRowid),
+      });
+    } catch (error) {
+      console.error("CREATE WORKER ERROR:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Gagal menambahkan worker",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// ==========================================
+// ADMIN - UPDATE WORKER
+// ==========================================
+
+app.patch(
+  "/api/admin/workers/:id",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      let { name, whatsapp, active } = req.body;
+
+      const existing = await db.execute({
+        sql: `
+          SELECT *
+          FROM workers
+          WHERE id = ?
+          LIMIT 1
+        `,
+        args: [id],
+      });
+
+      if (existing.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Worker tidak ditemukan",
+        });
+      }
+
+      const worker = existing.rows[0];
+
+      const newName =
+        name !== undefined
+          ? String(name).trim()
+          : worker.name;
+
+      let newWhatsapp =
+        whatsapp !== undefined
+          ? String(whatsapp).replace(/\D/g, "")
+          : worker.whatsapp;
+
+      if (newWhatsapp.startsWith("8")) {
+        newWhatsapp = `62${newWhatsapp}`;
+      }
+
+      const newActive =
+        active === undefined
+          ? Number(worker.active)
+          : active === true || active === 1
+            ? 1
+            : 0;
+
+      if (!newName || !newWhatsapp) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Nama dan nomor WhatsApp wajib diisi",
+        });
+      }
+
+      await db.execute({
+        sql: `
+          UPDATE workers
+          SET
+            name = ?,
+            whatsapp = ?,
+            active = ?
+          WHERE id = ?
+        `,
+        args: [
+          newName,
+          newWhatsapp,
+          newActive,
+          id,
+        ],
+      });
+
+      res.json({
+        success: true,
+        message: "Worker berhasil diperbarui",
+      });
+    } catch (error) {
+      console.error("UPDATE WORKER ERROR:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Gagal memperbarui worker",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// ==========================================
+// ADMIN - GET JOKI TICKETS
+// ==========================================
+
+app.get(
+  "/api/admin/joki-tickets",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const result = await db.execute(`
+        SELECT
+          jt.id,
+          jt.ticket_code,
+          jt.order_id,
+          jt.worker_id,
+          jt.status,
+          jt.progress,
+          jt.created_at,
+          jt.updated_at,
+
+          o.username,
+          o.game,
+          o.nominal,
+          o.price,
+          o.nickname,
+          o.user_id,
+          o.server_id,
+          o.whatsapp AS customer_whatsapp,
+          o.note,
+          o.created_at AS order_created_at,
+
+          w.name AS worker_name,
+          w.whatsapp AS worker_whatsapp
+
+        FROM joki_tickets jt
+
+        INNER JOIN orders o
+          ON o.id = jt.order_id
+
+        LEFT JOIN workers w
+          ON w.id = jt.worker_id
+
+        ORDER BY jt.id DESC
+      `);
+
+      res.json({
+        success: true,
+        tickets: result.rows,
+      });
+    } catch (error) {
       console.error(
-        "UPDATE STATUS ERROR:",
+        "GET JOKI TICKETS ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "Gagal mengambil tiket Joki",
+      });
+    }
+  }
+);
+
+// ==========================================
+// ADMIN - ASSIGN WORKER
+// ==========================================
+
+app.patch(
+  "/api/admin/joki-tickets/:id/assign",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { workerId } = req.body;
+
+      if (!workerId) {
+        return res.status(400).json({
+          success: false,
+          message: "Worker wajib dipilih",
+        });
+      }
+
+      const workerResult = await db.execute({
+        sql: `
+          SELECT
+            id,
+            name,
+            whatsapp,
+            active
+          FROM workers
+          WHERE id = ?
+          LIMIT 1
+        `,
+        args: [workerId],
+      });
+
+      if (workerResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Worker tidak ditemukan",
+        });
+      }
+
+      const worker = workerResult.rows[0];
+
+      if (Number(worker.active) !== 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Worker sedang tidak aktif",
+        });
+      }
+
+      const ticketResult = await db.execute({
+        sql: `
+          SELECT
+            id,
+            order_id,
+            status
+          FROM joki_tickets
+          WHERE id = ?
+          LIMIT 1
+        `,
+        args: [id],
+      });
+
+      if (ticketResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Tiket Joki tidak ditemukan",
+        });
+      }
+
+      const ticket = ticketResult.rows[0];
+
+      if (
+        ticket.status === "selesai" ||
+        ticket.status === "dibatalkan"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Tiket yang sudah selesai/dibatalkan tidak bisa ditugaskan lagi",
+        });
+      }
+
+      await db.execute({
+        sql: `
+          UPDATE joki_tickets
+          SET
+            worker_id = ?,
+            status = 'diproses',
+            progress = CASE
+              WHEN progress < 1 THEN 1
+              ELSE progress
+            END,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `,
+        args: [workerId, id],
+      });
+
+      await db.execute({
+        sql: `
+          UPDATE orders
+          SET status = 'diproses'
+          WHERE id = ?
+        `,
+        args: [ticket.order_id],
+      });
+
+      res.json({
+        success: true,
+        message: "Worker berhasil ditugaskan",
+        ticketId: Number(id),
+        worker: {
+          id: Number(worker.id),
+          name: worker.name,
+          whatsapp: worker.whatsapp,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "ASSIGN WORKER ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "Gagal menugaskan worker",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// ==========================================
+// ADMIN - UPDATE TICKET STATUS
+// ==========================================
+
+app.patch(
+  "/api/admin/joki-tickets/:id/status",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const allowedStatus = [
+        "menunggu_worker",
+        "diproses",
+        "selesai",
+        "dibatalkan",
+      ];
+
+      if (!allowedStatus.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Status tiket tidak valid",
+          allowedStatus,
+        });
+      }
+
+      const ticketResult = await db.execute({
+        sql: `
+          SELECT order_id
+          FROM joki_tickets
+          WHERE id = ?
+          LIMIT 1
+        `,
+        args: [id],
+      });
+
+      if (ticketResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Tiket tidak ditemukan",
+        });
+      }
+
+      const orderId =
+        ticketResult.rows[0].order_id;
+
+      let progress = null;
+
+      if (status === "selesai") {
+        progress = 100;
+      }
+
+      if (status === "menunggu_worker") {
+        progress = 0;
+      }
+
+      if (progress === null) {
+        await db.execute({
+          sql: `
+            UPDATE joki_tickets
+            SET
+              status = ?,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `,
+          args: [status, id],
+        });
+      } else {
+        await db.execute({
+          sql: `
+            UPDATE joki_tickets
+            SET
+              status = ?,
+              progress = ?,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `,
+          args: [status, progress, id],
+        });
+      }
+
+      let orderStatus = "pending";
+
+      if (status === "diproses") {
+        orderStatus = "diproses";
+      }
+
+      if (status === "selesai") {
+        orderStatus = "selesai";
+      }
+
+      if (status === "dibatalkan") {
+        orderStatus = "dibatalkan";
+      }
+
+      if (status === "menunggu_worker") {
+        orderStatus = "pending";
+      }
+
+      await db.execute({
+        sql: `
+          UPDATE orders
+          SET status = ?
+          WHERE id = ?
+        `,
+        args: [orderStatus, orderId],
+      });
+
+      res.json({
+        success: true,
+        message:
+          "Status tiket berhasil diperbarui",
+        ticketId: Number(id),
+        status,
+        orderStatus,
+      });
+    } catch (error) {
+      console.error(
+        "UPDATE TICKET STATUS ERROR:",
         error
       );
 
       res.status(500).json({
         success: false,
         message:
-          "Gagal memperbarui status pesanan",
+          "Gagal memperbarui status tiket",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// ==========================================
+// ADMIN - UPDATE TICKET PROGRESS
+// ==========================================
+
+app.patch(
+  "/api/admin/joki-tickets/:id/progress",
+  checkAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const progress = Number(req.body.progress);
+
+      if (
+        !Number.isInteger(progress) ||
+        progress < 0 ||
+        progress > 100
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Progress harus berupa angka 0 sampai 100",
+        });
+      }
+
+      const ticketResult = await db.execute({
+        sql: `
+          SELECT order_id
+          FROM joki_tickets
+          WHERE id = ?
+          LIMIT 1
+        `,
+        args: [id],
+      });
+
+      if (ticketResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Tiket tidak ditemukan",
+        });
+      }
+
+      let ticketStatus = "diproses";
+
+      if (progress === 0) {
+        ticketStatus = "menunggu_worker";
+      }
+
+      if (progress === 100) {
+        ticketStatus = "selesai";
+      }
+
+      await db.execute({
+        sql: `
+          UPDATE joki_tickets
+          SET
+            progress = ?,
+            status = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `,
+        args: [progress, ticketStatus, id],
+      });
+
+      let orderStatus = "diproses";
+
+      if (progress === 100) {
+        orderStatus = "selesai";
+      }
+
+      if (progress === 0) {
+        orderStatus = "pending";
+      }
+
+      await db.execute({
+        sql: `
+          UPDATE orders
+          SET status = ?
+          WHERE id = ?
+        `,
+        args: [
+          orderStatus,
+          ticketResult.rows[0].order_id,
+        ],
+      });
+
+      res.json({
+        success: true,
+        message: "Progress tiket berhasil diperbarui",
+        ticketId: Number(id),
+        progress,
+        status: ticketStatus,
+      });
+    } catch (error) {
+      console.error(
+        "UPDATE TICKET PROGRESS ERROR:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Gagal memperbarui progress tiket",
         error: error.message,
       });
     }
@@ -1497,7 +2241,7 @@ async function startServer() {
     await initDatabase();
 
     // ==========================================
-    // TAMBAHKAN KOLOM RATING & REVIEW
+    // RATING
     // ==========================================
 
     try {
@@ -1506,16 +2250,12 @@ async function startServer() {
         ADD COLUMN rating INTEGER
       `);
     } catch (error) {
+      const message =
+        error.message?.toLowerCase() || "";
+
       if (
-        !error.message ||
-        (
-          !error.message
-            .toLowerCase()
-            .includes("duplicate") &&
-          !error.message
-            .toLowerCase()
-            .includes("already exists")
-        )
+        !message.includes("duplicate") &&
+        !message.includes("already exists")
       ) {
         console.error(
           "GAGAL TAMBAH KOLOM RATING:",
@@ -1524,22 +2264,22 @@ async function startServer() {
       }
     }
 
+    // ==========================================
+    // REVIEW
+    // ==========================================
+
     try {
       await db.execute(`
         ALTER TABLE orders
         ADD COLUMN review TEXT
       `);
     } catch (error) {
+      const message =
+        error.message?.toLowerCase() || "";
+
       if (
-        !error.message ||
-        (
-          !error.message
-            .toLowerCase()
-            .includes("duplicate") &&
-          !error.message
-            .toLowerCase()
-            .includes("already exists")
-        )
+        !message.includes("duplicate") &&
+        !message.includes("already exists")
       ) {
         console.error(
           "GAGAL TAMBAH KOLOM REVIEW:",

@@ -62,20 +62,15 @@ async function initDatabase() {
         ADD COLUMN ${column} ${type}
       `);
 
-      console.log(
-        `Kolom ${column} berhasil ditambahkan.`
-      );
+      console.log(`Kolom ${column} berhasil ditambahkan.`);
     } catch (error) {
-      const message =
-        error.message?.toLowerCase() || "";
+      const message = error.message?.toLowerCase() || "";
 
       if (
         !message.includes("duplicate") &&
         !message.includes("already exists")
       ) {
-        console.log(
-          `Kolom ${column} kemungkinan sudah ada.`
-        );
+        console.log(`Kolom ${column} kemungkinan sudah ada.`);
       }
     }
   }
@@ -97,6 +92,149 @@ async function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // ==========================================
+  // WORKERS
+  // ==========================================
+  // Menyimpan data worker joki.
+  //
+  // Contoh:
+  // id       = 1
+  // name     = "Worker Barr"
+  // whatsapp = "628xxxxxxxxxx"
+  // active   = 1
+  //
+  // Nomor WhatsApp worker nantinya hanya
+  // diberikan ke pelanggan setelah worker
+  // ditugaskan oleh admin.
+  // ==========================================
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS workers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      whatsapp TEXT NOT NULL,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // ==========================================
+  // JOKI TICKETS
+  // ==========================================
+  //
+  // Setiap order Joki akan mempunyai 1 tiket.
+  //
+  // Contoh:
+  // ticket_code = BR-JOKI-0001
+  //
+  // worker_id:
+  // NULL = belum ada worker
+  //
+  // status:
+  // menunggu_worker
+  // diproses
+  // selesai
+  // dibatalkan
+  //
+  // progress:
+  // 0 - 100
+  // ==========================================
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS joki_tickets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_code TEXT NOT NULL UNIQUE,
+      order_id INTEGER NOT NULL UNIQUE,
+      worker_id INTEGER,
+      status TEXT DEFAULT 'menunggu_worker',
+      progress INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // ==========================================
+  // TAMBAHKAN KOLOM TICKETS LAMA
+  // ==========================================
+  //
+  // Bagian ini untuk jaga-jaga kalau nanti
+  // tabel sudah pernah dibuat dengan struktur
+  // yang berbeda.
+  // ==========================================
+
+  const ticketColumns = [
+    ["worker_id", "INTEGER"],
+    ["status", "TEXT DEFAULT 'menunggu_worker'"],
+    ["progress", "INTEGER DEFAULT 0"],
+    ["updated_at", "DATETIME DEFAULT CURRENT_TIMESTAMP"],
+  ];
+
+  for (const [column, type] of ticketColumns) {
+    try {
+      await db.execute(`
+        ALTER TABLE joki_tickets
+        ADD COLUMN ${column} ${type}
+      `);
+
+      console.log(`Kolom tiket ${column} berhasil ditambahkan.`);
+    } catch (error) {
+      const message = error.message?.toLowerCase() || "";
+
+      if (
+        !message.includes("duplicate") &&
+        !message.includes("already exists")
+      ) {
+        console.log(
+          `Kolom tiket ${column} kemungkinan sudah ada.`
+        );
+      }
+    }
+  }
+
+  // ==========================================
+  // TAMBAHKAN RATING & REVIEW
+  // ==========================================
+
+  try {
+    await db.execute(`
+      ALTER TABLE orders
+      ADD COLUMN rating INTEGER
+    `);
+
+    console.log("Kolom rating berhasil ditambahkan.");
+  } catch (error) {
+    const message = error.message?.toLowerCase() || "";
+
+    if (
+      !message.includes("duplicate") &&
+      !message.includes("already exists")
+    ) {
+      console.log("Kolom rating kemungkinan sudah ada.");
+    }
+  }
+
+  try {
+    await db.execute(`
+      ALTER TABLE orders
+      ADD COLUMN review TEXT
+    `);
+
+    console.log("Kolom review berhasil ditambahkan.");
+  } catch (error) {
+    const message = error.message?.toLowerCase() || "";
+
+    if (
+      !message.includes("duplicate") &&
+      !message.includes("already exists")
+    ) {
+      console.log("Kolom review kemungkinan sudah ada.");
+    }
+  }
+
+  // ==========================================
+  // SELESAI
+  // ==========================================
 
   console.log("Turso database siap!");
 }
