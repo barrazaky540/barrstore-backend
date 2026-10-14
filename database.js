@@ -1,11 +1,35 @@
+require("dotenv").config();
+
 const { createClient } = require("@libsql/client");
+
+// ==========================================
+// CEK ENV TURSO
+// ==========================================
+
+if (!process.env.TURSO_DATABASE_URL) {
+  console.error("ERROR: TURSO_DATABASE_URL belum diatur.");
+}
+
+if (!process.env.TURSO_AUTH_TOKEN) {
+  console.error("ERROR: TURSO_AUTH_TOKEN belum diatur.");
+}
+
+// ==========================================
+// KONEKSI TURSO
+// ==========================================
 
 const db = createClient({
   url: process.env.TURSO_DATABASE_URL,
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
+// ==========================================
+// INIT DATABASE
+// ==========================================
+
 async function initDatabase() {
+  console.log("Menghubungkan ke Turso...");
+
   // ==========================================
   // USERS
   // ==========================================
@@ -18,6 +42,8 @@ async function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  console.log("Tabel users siap.");
 
   // ==========================================
   // ORDERS
@@ -36,16 +62,28 @@ async function initDatabase() {
       server_id TEXT,
       whatsapp TEXT,
       note TEXT,
+      voucher_code TEXT,
+      discount INTEGER DEFAULT 0,
       status TEXT DEFAULT 'pending',
+      rating INTEGER,
+      review TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
+  console.log("Tabel orders siap.");
+
   // ==========================================
-  // TAMBAHKAN KOLOM ORDERS LAMA
+  // MIGRASI KOLOM ORDERS
+  // Untuk database lama
   // ==========================================
 
   const orderColumns = [
+    ["username", "TEXT"],
+    ["service", "TEXT"],
+    ["game", "TEXT"],
+    ["nominal", "TEXT"],
+    ["price", "INTEGER"],
     ["nickname", "TEXT"],
     ["user_id", "TEXT"],
     ["server_id", "TEXT"],
@@ -53,6 +91,9 @@ async function initDatabase() {
     ["note", "TEXT"],
     ["voucher_code", "TEXT"],
     ["discount", "INTEGER DEFAULT 0"],
+    ["status", "TEXT DEFAULT 'pending'"],
+    ["rating", "INTEGER"],
+    ["review", "TEXT"],
   ];
 
   for (const [column, type] of orderColumns) {
@@ -64,14 +105,20 @@ async function initDatabase() {
 
       console.log(`Kolom ${column} berhasil ditambahkan.`);
     } catch (error) {
-      const message = error.message?.toLowerCase() || "";
+      const message = String(error.message || "").toLowerCase();
 
+      // Kalau kolom memang sudah ada, abaikan.
       if (
-        !message.includes("duplicate") &&
-        !message.includes("already exists")
+        message.includes("duplicate") ||
+        message.includes("already exists") ||
+        message.includes("duplicate column")
       ) {
-        console.log(`Kolom ${column} kemungkinan sudah ada.`);
+        continue;
       }
+
+      console.log(
+        `Kolom ${column} tidak ditambahkan: ${error.message}`
+      );
     }
   }
 
@@ -93,151 +140,30 @@ async function initDatabase() {
     )
   `);
 
-  // ==========================================
-  // WORKERS
-  // ==========================================
-  // Menyimpan data worker joki.
-  //
-  // Contoh:
-  // id       = 1
-  // name     = "Worker Barr"
-  // whatsapp = "628xxxxxxxxxx"
-  // active   = 1
-  //
-  // Nomor WhatsApp worker nantinya hanya
-  // diberikan ke pelanggan setelah worker
-  // ditugaskan oleh admin.
-  // ==========================================
-
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS workers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      whatsapp TEXT NOT NULL,
-      active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+  console.log("Tabel vouchers siap.");
 
   // ==========================================
-  // JOKI TICKETS
-  // ==========================================
-  //
-  // Setiap order Joki akan mempunyai 1 tiket.
-  //
-  // Contoh:
-  // ticket_code = BR-JOKI-0001
-  //
-  // worker_id:
-  // NULL = belum ada worker
-  //
-  // status:
-  // menunggu_worker
-  // diproses
-  // selesai
-  // dibatalkan
-  //
-  // progress:
-  // 0 - 100
-  // ==========================================
-
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS joki_tickets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ticket_code TEXT NOT NULL UNIQUE,
-      order_id INTEGER NOT NULL UNIQUE,
-      worker_id INTEGER,
-      status TEXT DEFAULT 'menunggu_worker',
-      progress INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // ==========================================
-  // TAMBAHKAN KOLOM TICKETS LAMA
-  // ==========================================
-  //
-  // Bagian ini untuk jaga-jaga kalau nanti
-  // tabel sudah pernah dibuat dengan struktur
-  // yang berbeda.
-  // ==========================================
-
-  const ticketColumns = [
-    ["worker_id", "INTEGER"],
-    ["status", "TEXT DEFAULT 'menunggu_worker'"],
-    ["progress", "INTEGER DEFAULT 0"],
-    ["updated_at", "DATETIME DEFAULT CURRENT_TIMESTAMP"],
-  ];
-
-  for (const [column, type] of ticketColumns) {
-    try {
-      await db.execute(`
-        ALTER TABLE joki_tickets
-        ADD COLUMN ${column} ${type}
-      `);
-
-      console.log(`Kolom tiket ${column} berhasil ditambahkan.`);
-    } catch (error) {
-      const message = error.message?.toLowerCase() || "";
-
-      if (
-        !message.includes("duplicate") &&
-        !message.includes("already exists")
-      ) {
-        console.log(
-          `Kolom tiket ${column} kemungkinan sudah ada.`
-        );
-      }
-    }
-  }
-
-  // ==========================================
-  // TAMBAHKAN RATING & REVIEW
+  // CEK ULANG DATABASE
   // ==========================================
 
   try {
-    await db.execute(`
-      ALTER TABLE orders
-      ADD COLUMN rating INTEGER
-    `);
+    await db.execute(`SELECT 1 FROM users LIMIT 1`);
+    await db.execute(`SELECT 1 FROM orders LIMIT 1`);
+    await db.execute(`SELECT 1 FROM vouchers LIMIT 1`);
 
-    console.log("Kolom rating berhasil ditambahkan.");
+    console.log("=================================");
+    console.log("TURSO DATABASE SIAP!");
+    console.log("=================================");
   } catch (error) {
-    const message = error.message?.toLowerCase() || "";
-
-    if (
-      !message.includes("duplicate") &&
-      !message.includes("already exists")
-    ) {
-      console.log("Kolom rating kemungkinan sudah ada.");
-    }
+    console.error("Gagal mengecek tabel database:");
+    console.error(error);
+    throw error;
   }
-
-  try {
-    await db.execute(`
-      ALTER TABLE orders
-      ADD COLUMN review TEXT
-    `);
-
-    console.log("Kolom review berhasil ditambahkan.");
-  } catch (error) {
-    const message = error.message?.toLowerCase() || "";
-
-    if (
-      !message.includes("duplicate") &&
-      !message.includes("already exists")
-    ) {
-      console.log("Kolom review kemungkinan sudah ada.");
-    }
-  }
-
-  // ==========================================
-  // SELESAI
-  // ==========================================
-
-  console.log("Turso database siap!");
 }
+
+// ==========================================
+// EXPORT
+// ==========================================
 
 module.exports = {
   db,
